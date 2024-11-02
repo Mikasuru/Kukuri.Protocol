@@ -181,28 +181,37 @@ class ThemeManager:
         style = styles[widget_type]
         stylesheet_parts = []
         
-        if widget_type == "buttons":
+        # กำหนด base selector ตามประเภท widget
+        if widget_type in ["sent_message", "received_message"]:
+            base_selector = "QLabel[class='message']"
+        elif widget_type == "buttons":
             base_selector = "QPushButton"
         elif widget_type == "input_field":
-            base_selector = "QLineEdit"
+            base_selector = "QLineEdit, QTextEdit"  # เพิ่ม QTextEdit
         elif widget_type == "chat_area":
-            base_selector = "QTextEdit"
+            base_selector = "QWidget"  # เปลี่ยนจาก QTextEdit เป็น QWidget
         elif widget_type == "contact_list":
             base_selector = "QListWidget"
         elif widget_type == "window":
             base_selector = "QWidget"
+        elif widget_type == "header":
+            base_selector = "QWidget#header"
+        elif widget_type == "sidebar":
+            base_selector = "QWidget#sidebar"
         else:
-            base_selector = ""
+            base_selector = "QWidget"
         
+        # สร้าง main style
         main_style = []
         
+        # จัดการพื้นหลัง
         if "background" in style:
             if ("background_image" in style and 
                 "assets" in self.current_theme and 
                 self.current_theme_name is not None):
                 
                 image_path = str(self.themes_dir / self.current_theme_name / style["background_image"])
-                image_path = image_path.replace('\\', '/') 
+                image_path = image_path.replace('\\', '/')
                 
                 if Path(image_path).exists():
                     main_style.append(f"background-image: url('{image_path}');")
@@ -216,37 +225,48 @@ class ThemeManager:
             else:
                 main_style.append(f"background-color: {style['background']};")
         
+        # จัดการสีตัวอักษร
         if "text_color" in style:
             main_style.append(f"color: {style['text_color']};")
         
+        # จัดการเส้นขอบ
         if "border_color" in style:
             main_style.append(f"border: 1px solid {style['border_color']};")
         
         if "border_radius" in style:
             main_style.append(f"border-radius: {style['border_radius']}px;")
         
+        # จัดการ padding
         if "padding" in style:
             padding = style["padding"]
             if isinstance(padding, list) and len(padding) == 4:
                 main_style.append(f"padding: {padding[0]}px {padding[1]}px {padding[2]}px {padding[3]}px;")
         
+        # รวม style หลัก
         if main_style:
             stylesheet_parts.append(f"{base_selector} {{ {' '.join(main_style)} }}")
         
+        # จัดการ hover effects สำหรับปุ่ม
         if widget_type == "buttons":
             if "hover_background" in style:
                 stylesheet_parts.append(f"{base_selector}:hover {{ background-color: {style['hover_background']}; }}")
             if "pressed_background" in style:
                 stylesheet_parts.append(f"{base_selector}:pressed {{ background-color: {style['pressed_background']}; }}")
+            if "disabled_background" in style:
+                stylesheet_parts.append(f"{base_selector}:disabled {{ background-color: {style['disabled_background']}; }}")
         
+        # จัดการ selected state สำหรับ contact list
         if widget_type == "contact_list":
             if "selected_background" in style:
                 stylesheet_parts.append(f"{base_selector}::item:selected {{ background: {style['selected_background']}; }}")
+            if "hover_background" in style:
+                stylesheet_parts.append(f"{base_selector}::item:hover {{ background: {style['hover_background']}; }}")
             if "online_color" in style:
                 stylesheet_parts.append(f"{base_selector}::item[online=true] {{ color: {style['online_color']}; }}")
             if "offline_color" in style:
                 stylesheet_parts.append(f"{base_selector}::item[online=false] {{ color: {style['offline_color']}; }}")
         
+        # จัดการ scrollbar
         if "scrollbar" in self.current_theme["styles"]:
             scrollbar = self.current_theme["styles"]["scrollbar"]
             if "width" in scrollbar:
@@ -258,6 +278,7 @@ class ThemeManager:
             if "handle_hover_color" in scrollbar:
                 stylesheet_parts.append(f"{base_selector} QScrollBar::handle:vertical:hover {{ background: {scrollbar['handle_hover_color']}; }}")
         
+        # รวม stylesheet และใช้กับ widget
         if stylesheet_parts:
             full_stylesheet = " ".join(stylesheet_parts)
             print(f"Applying stylesheet to {widget_type}:")
@@ -267,6 +288,10 @@ class ThemeManager:
             except Exception as e:
                 print(f"Error applying stylesheet: {e}")
         
+        # จัดการฟอนต์
         if "font_family" in style and "font_size" in style:
-            font = QFont(style["font_family"], style["font_size"])
-            widget.setFont(font)
+            try:
+                font = QFont(style["font_family"], style["font_size"])
+                widget.setFont(font)
+            except Exception as e:
+                print(f"Error setting font: {e}")

@@ -10,63 +10,391 @@ from datetime import datetime
 from plyer import notification 
 
 from theme_manager import ThemeManager
+import os
+
+class ProfileEditDialog(QDialog):
+    def __init__(self, username, current_profile, parent=None):
+        super().__init__(parent)
+        self.username = username
+        self.current_profile = current_profile
+        self.profile_image_data = None
+        self.additional_image_data = None
+        self.init_ui()
+        
+    def init_ui(self):
+        self.setWindowTitle('Edit Profile')
+        self.setMinimumWidth(400)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a1a;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+                margin-top: 10px;
+            }
+            QLineEdit {
+                padding: 8px;
+                border-radius: 5px;
+                background-color: #2d2d2d;
+                color: white;
+                border: 1px solid #3d3d3d;
+                margin-bottom: 5px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #3B82F6;
+            }
+            QPushButton {
+                padding: 8px 15px;
+                border-radius: 5px;
+                background-color: #3B82F6;
+                color: white;
+                border: none;
+                margin-top: 15px;
+            }
+            QPushButton:hover {
+                background-color: #2563EB;
+            }
+            QPushButton#cancelButton {
+                background-color: #4B5563;
+            }
+            QPushButton#cancelButton:hover {
+                background-color: #374151;
+            }
+            QPushButton#imageButton {
+                margin-top: 5px;
+                background-color: #4B5563;
+                padding: 5px 10px;
+            }
+            QPushButton#imageButton:hover {
+                background-color: #374151;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        # Profile Picture Section
+        layout.addWidget(QLabel('Profile Picture:'))
+        profile_image_layout = QHBoxLayout()
+        
+        # Profile picture preview container
+        profile_container = QWidget()
+        profile_container.setFixedSize(128, 128) 
+        profile_layout = QVBoxLayout(profile_container)
+        profile_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.profile_preview = QLabel()
+        self.profile_preview.setFixedSize(128, 128)
+        self.profile_preview.setStyleSheet("""
+            background-color: #2d2d2d;
+            border-radius: 64px;
+        """)
+        
+        if self.current_profile.get('profile_image'):
+            self.set_profile_preview(self.current_profile['profile_image'])
+        else:
+            self.profile_preview.setText(self.username[0].upper())
+            self.profile_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        profile_layout.addWidget(self.profile_preview)
+        profile_image_layout.addWidget(profile_container)
+        
+        profile_btn_container = QVBoxLayout()
+        self.select_profile_btn = QPushButton('Select New Profile Picture')
+        self.select_profile_btn.setObjectName('imageButton')
+        self.select_profile_btn.clicked.connect(self.select_profile_image)
+        profile_btn_container.addWidget(self.select_profile_btn)
+        profile_image_layout.addLayout(profile_btn_container)
+        
+        layout.addLayout(profile_image_layout)
+        
+        # Display Name
+        layout.addWidget(QLabel('Display Name:'))
+        self.display_name_input = QLineEdit()
+        self.display_name_input.setText(self.current_profile.get('display_name', ''))
+        self.display_name_input.setPlaceholderText('Enter new display name')
+        layout.addWidget(self.display_name_input)
+        
+        # Current Password
+        layout.addWidget(QLabel('Current Password:'))
+        self.current_password = QLineEdit()
+        self.current_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.current_password.setPlaceholderText('Enter current password')
+        layout.addWidget(self.current_password)
+        
+        # New Password
+        layout.addWidget(QLabel('New Password:'))
+        self.new_password = QLineEdit()
+        self.new_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.new_password.setPlaceholderText('Enter new password (leave blank if no change)')
+        layout.addWidget(self.new_password)
+        
+        # Confirm New Password
+        layout.addWidget(QLabel('Confirm New Password:'))
+        self.confirm_password = QLineEdit()
+        self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password.setPlaceholderText('Confirm new password')
+        layout.addWidget(self.confirm_password)
+        
+        # Additional Image
+        layout.addWidget(QLabel('Additional Image:'))
+        image_layout = QHBoxLayout()
+        
+        self.additional_preview = QLabel()
+        self.additional_preview.setFixedSize(200, 100)
+        self.additional_preview.setStyleSheet("""
+            background-color: #2d2d2d;
+            border-radius: 5px;
+            padding: 5px;
+        """)
+        
+        if self.current_profile.get('additional_image'):
+            pixmap = QPixmap()
+            pixmap.loadFromData(base64.b64decode(self.current_profile['additional_image']))
+            pixmap = pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio)
+            self.additional_preview.setPixmap(pixmap)
+        
+        image_layout.addWidget(self.additional_preview)
+        
+        self.select_additional_btn = QPushButton('Select New Additional Image')
+        self.select_additional_btn.setObjectName('imageButton')
+        self.select_additional_btn.clicked.connect(self.select_additional_image)
+        image_layout.addWidget(self.select_additional_btn)
+        
+        layout.addLayout(image_layout)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        save_btn = QPushButton('Save Changes')
+        save_btn.clicked.connect(self.save_changes)
+        
+        cancel_btn = QPushButton('Cancel')
+        cancel_btn.setObjectName('cancelButton')
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(cancel_btn)
+        button_layout.addWidget(save_btn)
+        
+        layout.addLayout(button_layout)
+
+    def set_profile_preview(self, image_data, is_base64=True):
+        try:
+            if is_base64:
+                image_data = base64.b64decode(image_data)
+            
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data)
+            scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, 
+                                        Qt.TransformationMode.SmoothTransformation)
+            
+            rounded = QPixmap(scaled_pixmap.size())
+            rounded.fill(Qt.GlobalColor.transparent)
+            
+            painter = QPainter(rounded)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            path = QPainterPath()
+            path.addEllipse(0, 0, 100, 100)
+            painter.setClipPath(path)
+            painter.drawPixmap(0, 0, scaled_pixmap)
+            painter.end()
+            
+            self.profile_preview.setPixmap(rounded)
+        except Exception as e:
+            print(f"Error setting profile preview: {e}")
+
+    def select_profile_image(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Profile Picture",
+            "",
+            "Images (*.png *.jpg *.jpeg)"
+        )
+        
+        if file_path:
+            with open(file_path, 'rb') as f:
+                image_data = f.read()
+                self.profile_image_data = base64.b64encode(image_data).decode('utf-8')
+                self.set_profile_preview(image_data, is_base64=False)
+
+    def select_additional_image(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Additional Image",
+            "",
+            "Images (*.png *.jpg *.jpeg)"
+        )
+        
+        if file_path:
+            with open(file_path, 'rb') as f:
+                self.additional_image_data = base64.b64encode(f.read()).decode('utf-8')
+            
+            pixmap = QPixmap(file_path)
+            pixmap = pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio)
+            self.additional_preview.setPixmap(pixmap)
+    
+    def save_changes(self):
+        if self.new_password.text():
+            if self.new_password.text() != self.confirm_password.text():
+                QMessageBox.warning(self, 'Error', 'New passwords do not match!')
+                return
+            if not self.current_password.text():
+                QMessageBox.warning(self, 'Error', 'Please enter current password!')
+                return
+        
+        confirm = QMessageBox.question(
+            self,
+            'Confirm Changes',
+            'Are you sure you want to save these changes?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if confirm == QMessageBox.StandardButton.Yes:
+            self.accept()
+
+    def get_updated_data(self):
+        data = {
+            'display_name': self.display_name_input.text(),
+            'current_password': self.current_password.text(),
+            'new_password': self.new_password.text() if self.new_password.text() else None
+        }
+        
+        if self.profile_image_data:
+            data['profile_image'] = self.profile_image_data
+            
+        if self.additional_image_data:
+            data['additional_image'] = self.additional_image_data
+            
+        return data
 
 class MessageBubble(QWidget):
     def __init__(self, message, timestamp, is_sender=False, profile_image=None, parent=None):
         super().__init__(parent)
+        self.setProperty("is_sender", is_sender)
         
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(10, 5, 10, 5)
+        main_layout.setContentsMargins(10, 2, 10, 2)
+        main_layout.setSpacing(8)
         
         if is_sender:
             main_layout.addStretch()
         
         if not is_sender:
+            profile_frame = QFrame()
+            profile_frame.setStyleSheet("""
+                QFrame {
+                    background: transparent;
+                    border: none;
+                    min-width: 45px;
+                    min-height: 45px;
+                    max-width: 45px;
+                    max-height: 45px;
+                }
+            """)
+            
+            profile_frame_layout = QGridLayout(profile_frame)
+            profile_frame_layout.setContentsMargins(0, 0, 0, 0)
+            profile_frame_layout.setSpacing(0)
+            
             profile_container = QLabel()
             profile_container.setFixedSize(45, 45)
+            profile_container.setStyleSheet("""
+                QLabel {
+                    background-color: #2d2d2d;
+                    border-radius: 22.5px;
+                    padding: 0px;
+                    margin: 0px;
+                }
+            """)
             
             if profile_image:
-                pixmap = QPixmap()
-                pixmap.loadFromData(base64.b64decode(profile_image))
-                pixmap = pixmap.scaled(45, 45, Qt.AspectRatioMode.KeepAspectRatio, 
-                                     Qt.TransformationMode.SmoothTransformation)
-                
-                rounded = QPixmap(pixmap.size())
-                rounded.fill(Qt.GlobalColor.transparent)
-                
-                painter = QPainter(rounded)
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                
-                path = QPainterPath()
-                path.addEllipse(0, 0, 45, 45)
-                painter.setClipPath(path)
-                painter.drawPixmap(0, 0, pixmap)
-                painter.end()
-                
-                profile_container.setPixmap(rounded)
-            else:
-                profile_container.setStyleSheet("""
-                    background-color: #2d2d2d;
-                    border-radius: 22px;
-                    color: white;
-                    qproperty-alignment: AlignCenter;
-                """)
+                try:
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(base64.b64decode(profile_image))
+                    
+                    target_size = 45
+                    aspect_ratio = pixmap.width() / pixmap.height()
+                    
+                    if aspect_ratio > 1:
+                        height = target_size
+                        width = int(height * aspect_ratio)
+                    else:
+                        width = target_size
+                        height = int(width / aspect_ratio)
+                    
+                    scaled_pixmap = pixmap.scaled(width, height, 
+                                                Qt.AspectRatioMode.KeepAspectRatio,
+                                                Qt.TransformationMode.SmoothTransformation)
+                    
+                    if width > height:
+                        x = (width - target_size) // 2
+                        y = 0
+                    else:
+                        x = 0
+                        y = (height - target_size) // 2
+                        
+                    cropped_pixmap = scaled_pixmap.copy(x, y, target_size, target_size)
+                    
+                    final_pixmap = QPixmap(target_size, target_size)
+                    final_pixmap.fill(Qt.GlobalColor.transparent)
+                    
+                    painter = QPainter(final_pixmap)
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    
+                    path = QPainterPath()
+                    path.addEllipse(0, 0, target_size, target_size)
+                    painter.setClipPath(path)
+                    
+                    painter.drawPixmap(0, 0, cropped_pixmap)
+                    painter.end()
+                    
+                    profile_container.setPixmap(final_pixmap)
+                except Exception as e:
+                    print(f"Error processing profile image: {e}")
             
-            main_layout.addWidget(profile_container)
+            profile_frame_layout.addWidget(profile_container, 0, 0, Qt.AlignmentFlag.AlignCenter)
+            main_layout.addWidget(profile_frame)
         
+        # Message Container
         message_container = QWidget()
         message_layout = QVBoxLayout(message_container)
         message_layout.setContentsMargins(0, 0, 0, 0)
-        message_layout.setSpacing(2)
+        message_layout.setSpacing(1)
         
-        message_label = QLabel(message)
+        #message_label = QLabel()
+        #message_label.setWordWrap(True)
+        #message_label.setTextFormat(Qt.TextFormat.RichText)
+        formatted_message = message.replace(' ', '&nbsp;')
+        formatted_message = formatted_message.replace('<br>', '<br/>')
+        formatted_message = formatted_message.replace('\n', '<br/>')
+
+        message_label = QLabel()
         message_label.setWordWrap(True)
+        message_label.setTextFormat(Qt.TextFormat.RichText)
+        message_label.setProperty("class", "message")
+        message_label.setText(formatted_message)
+
+        #formatted_message = message.replace(' ', '&nbsp;')
+        #formatted_message = formatted_message.replace('<br>', '<br/>')
+        #formatted_message = formatted_message.replace('\n', '<br/>')
+        
+        message_label.setText(formatted_message)
+        
+        message_label.setMinimumWidth(50)
+        message_label.setMaximumWidth(400) 
+        
         message_label.setStyleSheet(f"""
-            background-color: {'#0084FF' if is_sender else '#E4E6EB'};
-            color: {'white' if is_sender else 'black'};
-            border-radius: 15px;
-            padding: 8px 12px;
-            max-width: 400px;
+            QLabel {{
+                background-color: {'#0084FF' if is_sender else '#E4E6EB'};
+                color: {'white' if is_sender else 'black'};
+                border-radius: 15px;
+                padding: 8px 12px;
+                margin: 0px;
+                font-size: 14px;
+                line-height: 1.4;  /* เพิ่ม line height เพื่อให้อ่านง่ายขึ้น */
+            }}
         """)
         message_layout.addWidget(message_label)
         
@@ -79,51 +407,66 @@ class MessageBubble(QWidget):
         time_label.setAlignment(Qt.AlignmentFlag.AlignLeft if not is_sender else Qt.AlignmentFlag.AlignRight)
         message_layout.addWidget(time_label)
         
+        if is_sender:
+            message_container.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        
         main_layout.addWidget(message_container)
         
         if not is_sender:
             main_layout.addStretch()
+        
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        message_container.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
 
-class ChatHistory(QTextEdit):
+class ChatHistory(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setReadOnly(True)
-        self.document().setDocumentMargin(20)
         
-    def add_message(self, message, timestamp, is_sender=False, profile_image=None):
-        message_widget = MessageBubble(message, timestamp, is_sender, profile_image)
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #2d2d2d;
+                border: none;
+            }
+        """)
         
-        block_format = QTextBlockFormat()
-        if is_sender:
-            block_format.setAlignment(Qt.AlignmentFlag.AlignRight)
-        else:
-            block_format.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.messages_widget = QWidget()
+        self.messages_layout = QVBoxLayout(self.messages_widget)
+        self.messages_layout.setSpacing(2) 
+        self.messages_layout.setContentsMargins(10, 5, 10, 5)
+        self.messages_layout.addStretch()
         
-        cursor = self.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertBlock(block_format)
+        self.scroll_area.setWidget(self.messages_widget)
         
-        widget_container = QWidget(self)
-        layout = QHBoxLayout(widget_container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(message_widget)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(self.scroll_area)
+    
+    def add_message(self, message, timestamp, is_sender=False, profile_image=None, image_label=None):
+        bubble = MessageBubble(message, timestamp, is_sender, profile_image)
         
-        document_layout = self.document().documentLayout()
-        block = cursor.block()
-        geometry = document_layout.blockBoundingRect(block)
-        widget_container.setGeometry(
-            int(geometry.x()),
-            int(geometry.y()),
-            self.viewport().width() - 40,
-            message_widget.sizeHint().height()
+        style = "sent_message" if is_sender else "received_message"
+        if self.parent() and hasattr(self.parent(), 'theme_manager'):
+            self.parent().theme_manager.apply_theme_to_widget(bubble, style)
+        
+        if image_label:
+            bubble.message_layout.addWidget(image_label)
+        
+        self.messages_layout.insertWidget(self.messages_layout.count() - 1, bubble)
+        QTimer.singleShot(100, self.scroll_to_bottom)
+    
+    def scroll_to_bottom(self):
+        self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
         )
         
-        cursor.insertHtml(f'<div style="height: {message_widget.sizeHint().height()}px;"></div>')
-        widget_container.show()
-        
-        self.verticalScrollBar().setValue(
-            self.verticalScrollBar().maximum()
-        )
+    def clear(self):
+        while self.messages_layout.count() > 1:
+            item = self.messages_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
 class ContactListItem(QWidget):
     clicked = pyqtSignal()
@@ -131,55 +474,89 @@ class ContactListItem(QWidget):
     def __init__(self, profile_data):
         super().__init__()
         self.setObjectName("contactListItem")
+        
+        self.setFixedHeight(74)
+        
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 5, 10, 5)
+        layout.setContentsMargins(10, 5, 10, 20)
         layout.setSpacing(10)
         
         self.profile_data = profile_data
         
-        profile_container = QWidget()
-        profile_container.setFixedSize(50, 50)
-        profile_layout = QVBoxLayout(profile_container)
-        profile_layout.setContentsMargins(0, 0, 0, 0)
+        # Profile Frame
+        profile_frame = QFrame()
+        profile_frame.setStyleSheet("""
+            QFrame {
+                background: transparent;
+                border: none;
+                min-width: 64px;
+                min-height: 64px;
+                max-width: 64px;
+                max-height: 64px;
+            }
+        """)
         
-        profile_pic = QLabel()
-        profile_pic.setFixedSize(50, 50)
+        profile_frame_layout = QGridLayout(profile_frame)
+        profile_frame_layout.setContentsMargins(0, 0, 0, 0)
+        profile_frame_layout.setSpacing(0)
+        
+        profile_container = QLabel()
+        profile_container.setFixedSize(64, 64)
+        profile_container.setStyleSheet("""
+            QLabel {
+                background-color: #2d2d2d;
+                border-radius: 32px;
+                padding: 0px;
+                margin: 0px;
+            }
+        """)
+        profile_frame_layout.addWidget(profile_container, 0, 0, Qt.AlignmentFlag.AlignCenter)
         
         if profile_data.get('profile_image'):
-            pixmap = QPixmap()
-            pixmap.loadFromData(base64.b64decode(profile_data['profile_image']))
-            pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, 
-                                 Qt.TransformationMode.SmoothTransformation)
-            
-            rounded = QPixmap(pixmap.size())
-            rounded.fill(Qt.GlobalColor.transparent)
-            
-            painter = QPainter(rounded)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
-            path = QPainterPath()
-            path.addEllipse(0, 0, 50, 50)
-            painter.setClipPath(path)
-            painter.drawPixmap(0, 0, pixmap)
-            painter.end()
-            
-            profile_pic.setPixmap(rounded)
+            try:
+                pixmap = QPixmap()
+                pixmap.loadFromData(base64.b64decode(profile_data['profile_image']))
+                
+                scaled_size = min(pixmap.width(), pixmap.height())
+                scaled_pixmap = pixmap.scaled(scaled_size, scaled_size, 
+                                            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                            Qt.TransformationMode.SmoothTransformation)
+                
+                x = (scaled_pixmap.width() - scaled_size) // 2
+                y = (scaled_pixmap.height() - scaled_size) // 2
+                cropped_pixmap = scaled_pixmap.copy(x, y, scaled_size, scaled_size)
+                
+                final_pixmap = QPixmap(64, 64)
+                final_pixmap.fill(Qt.GlobalColor.transparent)
+                
+                painter = QPainter(final_pixmap)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                
+                path = QPainterPath()
+                path.addEllipse(0, 0, 64, 64)
+                painter.setClipPath(path)
+                
+                dest_rect = QRect(0, 0, 64, 64)
+                painter.drawPixmap(dest_rect, cropped_pixmap)
+                painter.end()
+                
+                profile_container.setPixmap(final_pixmap)
+            except Exception as e:
+                print(f"Error processing profile image: {e}")
+                profile_container.setText(profile_data['username'][0].upper())
+                profile_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
         else:
-            profile_pic.setStyleSheet("""
-                background-color: #2d2d2d;
-                border-radius: 25px;
-                color: white;
-                qproperty-alignment: AlignCenter;
-            """)
-            profile_pic.setText(profile_data['username'][0].upper())
-        
-        profile_layout.addWidget(profile_pic)
-        layout.addWidget(profile_container)
+            profile_container.setText(profile_data['username'][0].upper())
+            profile_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(profile_frame)
         
         text_container = QWidget()
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(2)
+        
+        text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         self.name_label = QLabel(profile_data.get('display_name', profile_data['username']))
         self.name_label.setObjectName("usernameLabel")
@@ -194,29 +571,44 @@ class ContactListItem(QWidget):
         layout.addWidget(text_container, stretch=1)
         
         if profile_data.get('additional_image'):
-            tag_label = QLabel()
-            tag_pixmap = QPixmap()
-            tag_pixmap.loadFromData(base64.b64decode(profile_data['additional_image']))
-            tag_pixmap = tag_pixmap.scaled(40, 20, Qt.AspectRatioMode.KeepAspectRatio)
-            tag_label.setPixmap(tag_pixmap)
-            layout.addWidget(tag_label)
+            tag_container = QLabel()
+            tag_container.setFixedSize(64, 40)
+            tag_container.setStyleSheet("""
+                QLabel {
+                    border-radius: 5px;
+                    padding: 0px;
+                    margin: 0px;
+                }
+            """)
+            
+            try:
+                tag_pixmap = QPixmap()
+                tag_pixmap.loadFromData(base64.b64decode(profile_data['additional_image']))
+                scaled_tag = tag_pixmap.scaled(64, 40, 
+                                             Qt.AspectRatioMode.KeepAspectRatio,
+                                             Qt.TransformationMode.SmoothTransformation)
+                tag_container.setPixmap(scaled_tag)
+            except Exception as e:
+                print(f"Error processing additional image: {e}")
+            
+            layout.addWidget(tag_container)
         
         self.setStyleSheet("""
             QWidget#contactListItem {
                 background-color: transparent;
                 border-radius: 8px;
+                padding: 0px;
             }
             QWidget#contactListItem:hover {
                 background-color: rgba(255, 255, 255, 0.1);
             }
         """)
-    
+
+
     def get_username(self):
-        """Returns the username of this contact"""
         return self.profile_data['username']
 
     def get_display_name(self):
-        """Returns the display name of this contact"""
         return self.profile_data.get('display_name', self.profile_data['username'])
     
     def mousePressEvent(self, event):
@@ -285,15 +677,116 @@ class ChatClient(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        #self.websocket = None
+        #self.username = None
+        #self.chat_histories = {}
+        #self.current_contact = None
+        #self.unread_messages = {}
+        #self.theme_manager = None
+        #self._contacts_data = []
         self.websocket = None
         self.username = None
         self.chat_histories = {}
         self.current_contact = None
         self.unread_messages = {}
-        self.theme_manager = None
         self._contacts_data = []
-        self.init_ui()
         
+
+        self.settings_file = "settings.json"
+        self.theme_manager = ThemeManager()
+
+        self.message_input = QTextEdit()
+        self.message_input.setPlaceholderText("Type a message...")
+        self.message_input.setStyleSheet("""
+            QTextEdit {
+                background-color: #1a1a1a;
+                border-radius: 20px;
+                padding: 8px 15px;
+                font-size: 14px;
+                color: white;
+                min-height: 40px;
+                max-height: 120px;
+            }
+        """)
+        
+        document = self.message_input.document()
+        document.contentsChanged.connect(self.adjust_input_height)
+        
+        self.message_input.setFixedHeight(40)
+        self.message_input.installEventFilter(self)
+        
+        self.init_ui()
+        QTimer.singleShot(0, self.initialize_theme)
+
+    def initialize_theme(self):
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                    current_theme = settings.get('current_theme', 'default')
+            else:
+                current_theme = 'default'
+                self.save_settings({'current_theme': current_theme})
+            
+            if self.theme_manager.load_theme(current_theme):
+                self.apply_current_theme()
+            else:
+                print(f"ไม่สามารถโหลด theme: {current_theme} ได้ กำลังใช้ default theme แทน")
+                self.theme_manager.load_theme('default')
+                self.apply_current_theme()
+                
+        except Exception as e:
+            print(f"เกิดข้อผิดพลาดในการโหลด theme: {e}")
+            self.theme_manager.load_theme('default')
+            self.apply_current_theme()
+
+    def load_settings(self):
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    settings = json.load(f)
+                    current_theme = settings.get('current_theme', 'default')
+            else:
+                current_theme = 'default'
+                self.save_settings({'current_theme': current_theme})
+            
+            if self.theme_manager.load_theme(current_theme):
+                self.apply_current_theme()
+            else:
+                print(f"Failed to load theme: {current_theme}, falling back to default")
+                self.theme_manager.load_theme('default')
+                self.apply_current_theme()
+                
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+            self.theme_manager.load_theme('default')
+            self.apply_current_theme()
+
+    def save_settings(self, settings):
+        try:
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=4)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+
+    def adjust_input_height(self):
+        doc_height = self.message_input.document().size().height()
+        new_height = min(doc_height + 16, 120)
+        new_height = max(new_height, 40) 
+        self.message_input.setFixedHeight(int(new_height))
+    
+    def eventFilter(self, obj, event):
+        if obj == self.message_input and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Return:
+                if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                    cursor = self.message_input.textCursor()
+                    cursor.insertText('\n')
+                    return True
+                elif event.modifiers() == Qt.KeyboardModifier.NoModifier:
+                    self.send_message()
+                    return True
+        return super().eventFilter(obj, event)
+
     def init_ui(self):
         self.setWindowTitle('MomoTalk')
         self.setStyleSheet("""
@@ -407,6 +900,27 @@ class ChatClient(QMainWindow):
         self.profile_btn.setVisible(False)
         left_layout.addWidget(self.profile_btn)
         
+        # Profile
+        self.edit_profile_btn = QPushButton("📝")
+        self.edit_profile_btn.setObjectName("profileButton")
+        self.edit_profile_btn.setFixedSize(40, 40)
+        self.edit_profile_btn.setStyleSheet("""
+            QPushButton#profileButton {
+                background-color: #2d2d2d;
+                border-radius: 20px;
+                padding: 0;
+                font-size: 20px;
+                color: #999;
+            }
+            QPushButton#profileButton:hover {
+                background-color: #3d3d3d;
+                color: white;
+            }
+        """)
+        self.edit_profile_btn.clicked.connect(self.show_profile_editor)
+        self.edit_profile_btn.setVisible(False)
+        left_layout.addWidget(self.edit_profile_btn)
+
         # Login button
         self.login_btn = QPushButton("👤")
         self.login_btn.setObjectName("loginButton")
@@ -508,55 +1022,98 @@ class ChatClient(QMainWindow):
         # Neo
         self.chat_history = ChatHistory()
         self.chat_history.setStyleSheet("""
-            QTextEdit {
+            QWidget {
                 background-color: #2d2d2d;
-                padding: 20px;
-                border: none;
+                margin-bottom: 20px;
             }
         """)
         chat_layout.addWidget(self.chat_history)
         
         # Message input area
         input_widget = QWidget()
+        input_widget.setFixedHeight(60) 
         input_layout = QHBoxLayout(input_widget)
-        input_layout.setContentsMargins(20, 10, 20, 10)
-        
-        self.message_input = QLineEdit()
-        self.message_input.setPlaceholderText("Type a message...")
-        self.message_input.returnPressed.connect(self.send_message)
-        self.message_input.setStyleSheet("""
-            QLineEdit {
+        input_layout.setContentsMargins(10, 0, 10, 10)  
+        input_layout.setSpacing(8)  
+
+        # Container input
+        input_container = QWidget()
+        input_container.setFixedHeight(35) 
+        input_container.setStyleSheet("""
+            QWidget {
                 background-color: #1a1a1a;
-                border-radius: 20px;
-                padding: 10px 15px;
-                font-size: 14px;
+                border-radius: 17px;  /* ครึ่งหนึ่งของความสูงเพื่อให้มนพอดี */
             }
         """)
-        input_layout.addWidget(self.message_input)
-        
+
+        input_container_layout = QHBoxLayout(input_container)
+        input_container_layout.setContentsMargins(10, 0, 10, 0)  
+        input_container_layout.setSpacing(0)
+
+        self.message_input.setFixedHeight(50)
+        self.message_input.setStyleSheet("""
+            QTextEdit {
+                background-color: transparent;
+                border: none;
+                color: white;
+                font-size: 14px;
+                padding: 8px 0;
+            }
+        """)
+
+        input_container_layout.addWidget(self.message_input)
+        input_layout.addWidget(input_container, stretch=1) 
+
         send_btn = QPushButton("Send")
-        send_btn.setFixedWidth(70)
+        send_btn.setFixedSize(70, 35)
         send_btn.clicked.connect(self.send_message)
         input_layout.addWidget(send_btn)
-        
+
         image_btn = QPushButton("Image")
-        image_btn.setFixedWidth(70)
+        image_btn.setFixedSize(70, 35)
         image_btn.clicked.connect(self.send_image)
         input_layout.addWidget(image_btn)
-        
+
         chat_layout.addWidget(input_widget)
         
-        # Add panels to splitter
         chat_container.addWidget(chat_list_panel)
         chat_container.addWidget(chat_area)
         chat_container.setStretchFactor(0, 1)
         chat_container.setStretchFactor(1, 2)
         
-        # Add everything to main layout
         main_layout.addWidget(left_sidebar)
         main_layout.addWidget(chat_container)
         
         self.resize(1200, 800)
+
+    def show_profile_editor(self):
+        if not self.username:
+            return
+            
+        current_profile = {}
+        for contact in self._contacts_data:
+            if contact['username'] == self.username:
+                current_profile = contact
+                break
+        
+        dialog = ProfileEditDialog(self.username, current_profile, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            updated_data = dialog.get_updated_data()
+            
+            async def update_profile():
+                try:
+                    await self.websocket.send(json.dumps({
+                        'type': 'profile_update',
+                        'username': self.username,
+                        **updated_data
+                    }))
+                    
+                    QMessageBox.information(self, 'Success', 'Profile update request sent!')
+    
+                except Exception as e:
+                    QMessageBox.warning(self, 'Error', f'Error updating profile: {str(e)}')
+            
+            asyncio.get_event_loop().create_task(update_profile())
 
     def show_login_menu(self):
         menu = QMenu(self)
@@ -606,9 +1163,9 @@ class ChatClient(QMainWindow):
             print(f"Error updating contacts list: {e}")
 
     def handle_login_success(self):
-        """เรียกฟังก์ชันนี้เมื่อล็อกอินสำเร็จ"""
         self.login_btn.setVisible(False)
         self.profile_btn.setVisible(True)
+        self.edit_profile_btn.setVisible(True)
         self.profile_btn.setText(self.username[0].upper())
         
         if self.current_contact:
@@ -618,7 +1175,6 @@ class ChatClient(QMainWindow):
         self.chat_title.setStyleSheet("font-size: 16px; font-weight: bold; color: white;")
 
     def contact_selected(self, item):
-        """เรียกเมื่อเลือก contact"""
         contact_widget = self.contacts_list.itemWidget(item)
         if not contact_widget:
             print("No contact widget found")  # Debug log
@@ -692,21 +1248,29 @@ class ChatClient(QMainWindow):
     def show_theme_selector(self):
         themes = self.theme_manager.get_available_themes()
         if not themes:
-            QMessageBox.warning(self, 'Warning', 'No themes available')
+            QMessageBox.warning(self, 'Warning', 'ไม่พบ theme ที่ใช้ได้')
             return
         
+        current_theme = self.theme_manager.current_theme_name or 'default'
         theme, ok = QInputDialog.getItem(
-            self, 'Select Theme',
-            'Choose a theme to apply:',
-            themes, 0, False
+            self, 
+            'เลือก Theme',
+            'เลือก theme ที่ต้องการ:',
+            themes, 
+            themes.index(current_theme) if current_theme in themes else 0, 
+            False
         )
         
         if ok and theme:
-            if self.theme_manager.load_theme(theme):
-                self.apply_current_theme()
-                QMessageBox.information(self, 'Success', f'Theme "{theme}" applied successfully')
-            else:
-                QMessageBox.warning(self, 'Error', f'Failed to load theme "{theme}"')
+            try:
+                if self.theme_manager.load_theme(theme):
+                    self.save_settings({'current_theme': theme})
+                    self.apply_current_theme()
+                    QMessageBox.information(self, 'สำเร็จ', f'เปลี่ยน theme เป็น "{theme}" เรียบร้อยแล้ว')
+                else:
+                    QMessageBox.warning(self, 'ผิดพลาด', f'ไม่สามารถโหลด theme "{theme}" ได้')
+            except Exception as e:
+                QMessageBox.warning(self, 'ผิดพลาด', f'เกิดข้อผิดพลาด: {str(e)}')
     
     def import_theme(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -741,14 +1305,53 @@ class ChatClient(QMainWindow):
                 QMessageBox.warning(self, 'Error', 'Failed to export theme')
     
     def apply_current_theme(self):
-        """ใช้ theme ปัจจุบันกับทุก widget"""
-        self.theme_manager.apply_theme_to_widget(self.centralWidget(), "window")
-        self.theme_manager.apply_theme_to_widget(self.chat_history, "chat_area")
-        self.theme_manager.apply_theme_to_widget(self.message_input, "input_field")
-        self.theme_manager.apply_theme_to_widget(self.contacts_list, "contact_list")
-        
-        for button in self.findChildren(QPushButton):
-            self.theme_manager.apply_theme_to_widget(button, "buttons")
+        try:
+            if not self.theme_manager or not self.theme_manager.current_theme:
+                return
+                
+            # Main Window
+            self.theme_manager.apply_theme_to_widget(self, "window")
+            
+            # Left Sidebar
+            if hasattr(self, 'left_sidebar'):
+                self.theme_manager.apply_theme_to_widget(self.left_sidebar, "sidebar")
+            
+            # Search Input
+            if hasattr(self, 'search_input'):
+                self.theme_manager.apply_theme_to_widget(self.search_input, "input_field")
+            
+            # Chat Area and Components
+            if hasattr(self, 'chat_history'):
+                self.theme_manager.apply_theme_to_widget(self.chat_history, "chat_area")
+            
+            if hasattr(self, 'chat_title'):
+                self.theme_manager.apply_theme_to_widget(self.chat_title, "window")
+                
+            if hasattr(self, 'message_input'):
+                self.theme_manager.apply_theme_to_widget(self.message_input, "input_field")
+            
+            # Contact List
+            if hasattr(self, 'contacts_list'):
+                self.theme_manager.apply_theme_to_widget(self.contacts_list, "contact_list")
+            
+            # All Buttons
+            for button in self.findChildren(QPushButton):
+                self.theme_manager.apply_theme_to_widget(button, "buttons")
+                
+            # Special Buttons
+            if hasattr(self, 'send_btn'):
+                self.theme_manager.apply_theme_to_widget(self.send_btn, "buttons")
+            if hasattr(self, 'image_btn'):
+                self.theme_manager.apply_theme_to_widget(self.image_btn, "buttons")
+            
+            # Message Bubbles
+            for bubble in self.findChildren(MessageBubble):
+                is_sender = bubble.property("is_sender")
+                style = "sent_message" if is_sender else "received_message"
+                self.theme_manager.apply_theme_to_widget(bubble, style)
+                
+        except Exception as e:
+            print(f"เกิดข้อผิดพลาดในการใช้ theme: {e}")
 
     def show_register_dialog(self):
         dialog = QDialog(self)
@@ -1140,7 +1743,6 @@ class ChatClient(QMainWindow):
                 )
 
     def display_message(self, message):
-        """แสดงข้อความเดี่ยวๆ"""
         try:
             timestamp = message.get('timestamp', datetime.now().strftime('%H:%M'))
             sender = message.get('sender', 'Unknown')
@@ -1187,7 +1789,6 @@ class ChatClient(QMainWindow):
             print(f"Error displaying message: {e}")
 
     def append_chat_message(self, sender, message_type, content, timestamp):
-        """เพิ่มข้อความในพื้นที่แชทและบันทึกลงประวัติ"""
         try:
             if not self.current_contact:
                 return
@@ -1250,7 +1851,12 @@ class ChatClient(QMainWindow):
                             )
                         except:
                             print("Failed to show notification")
-                    
+                
+                elif message['type'] == 'profile_update_result':
+                    if message['status'] == 'success':
+                        QMessageBox.information(self, 'Success', 'Profile updated successfully!')
+                    else:
+                        QMessageBox.warning(self, 'Error', 'Failed to update profile')
                 elif message['type'] == 'status_update':
                     username = message['username']
                     is_online = message['status'] == 'online'
@@ -1283,33 +1889,35 @@ class ChatClient(QMainWindow):
             QMessageBox.warning(self, 'Warning', 'Please select a contact first')
             return
         
-        if not self.message_input.text():
+        content = self.message_input.toPlainText().strip() 
+        if not content:
             return
                 
-        content = self.message_input.text()
-        
         async def send():
             try:
+                formatted_content = content.replace('\n', '<br>')
+                
                 message_data = {
                     'type': 'message',
                     'message_type': 'text',
                     'sender': self.username,
                     'receiver': self.current_contact,
-                    'content': content
+                    'content': formatted_content
                 }
                 
-                print(f"Sending message: {message_data}") 
+                print(f"Sending message: {message_data}")
                 await self.websocket.send(json.dumps(message_data))
                 
                 self.message_input.clear()
-                timestamp = datetime.now().strftime('%H:%M:%S')
-                self.append_chat_message(self.username, 'text', content, timestamp)
+                timestamp = datetime.now().strftime('%H:%M')
+                self.append_chat_message(self.username, 'text', formatted_content, timestamp)
                 
             except Exception as e:
-                print(f"Error sending message: {e}")  # debug
+                print(f"Error sending message: {e}")
                 QMessageBox.warning(self, 'Error', f'Failed to send message: {str(e)}')
         
         asyncio.get_event_loop().create_task(send())
+        self.message_input.setFixedHeight(40)
 
     def send_image(self):
         if not self.current_contact: 
@@ -1398,7 +2006,6 @@ class ChatClient(QMainWindow):
 
     
     def contact_selected(self, item):
-        """เรียกเมื่อเลือก contact"""
         try:
             contact_widget = self.contacts_list.itemWidget(item)
             if not contact_widget:
@@ -1422,41 +2029,53 @@ class ChatClient(QMainWindow):
             print(f"Error in contact_selected: {e}")
 
     def display_chat_history(self, username):
-        """แสดงประวัติการแชทแยกออกมาเพื่อไม่ให้ UI ค้าง"""
         try:
             if username in self.chat_histories:
                 for message in self.chat_histories[username]:
-                    try:
-                        timestamp = message.get('timestamp', datetime.now().strftime('%H:%M:%S'))
-                        sender = message.get('sender', 'Unknown')
-                        msg_type = message.get('type', 'text')
-                        content = message.get('content', '')
-                        
-                        if msg_type == 'text':
-                            self.chat_history.append(f'[{timestamp}] {sender}: {content}')
-                        elif msg_type == 'image':
-                            self.chat_history.append(f'[{timestamp}] {sender} sent an image:')
-                            try:
-                                image_data = base64.b64decode(content)
-                                image = QImage.fromData(image_data)
-                                if not image.isNull():
-                                    pixmap = QPixmap.fromImage(image)
-                                    if pixmap.width() > 300:
-                                        pixmap = pixmap.scaledToWidth(300)
-                                    cursor = self.chat_history.textCursor()
-                                    cursor.movePosition(QTextCursor.MoveOperation.End)
-                                    cursor.insertImage(pixmap.toImage())
-                                    self.chat_history.append('')
-                            except Exception as e:
-                                print(f"Error displaying image: {e}")
-                                self.chat_history.append("[Error displaying image]")
-                    except Exception as e:
-                        print(f"Error displaying message: {e}")
-                        continue
-                        
-                self.chat_history.verticalScrollBar().setValue(
-                    self.chat_history.verticalScrollBar().maximum()
-                )
+                    timestamp = message.get('timestamp', datetime.now().strftime('%H:%M'))
+                    sender = message.get('sender', 'Unknown')
+                    msg_type = message.get('type', 'text')
+                    content = message.get('content', '')
+                    
+                    profile_image = None
+                    for contact in self._contacts_data:
+                        if contact['username'] == sender:
+                            profile_image = contact.get('profile_image')
+                            break
+                    
+                    if msg_type == 'text':
+                        self.chat_history.add_message(
+                            content,
+                            timestamp,
+                            sender == self.username,
+                            profile_image
+                        )
+                    elif msg_type == 'image':
+                        try:
+                            image_data = base64.b64decode(content)
+                            image = QImage.fromData(image_data)
+                            if not image.isNull():
+                                pixmap = QPixmap.fromImage(image)
+                                if pixmap.width() > 300:
+                                    pixmap = pixmap.scaledToWidth(300)
+                                
+                                image_label = QLabel()
+                                image_label.setPixmap(pixmap)
+                                image_label.setStyleSheet("""
+                                    border-radius: 15px;
+                                    padding: 5px;
+                                """)
+                                
+                                self.chat_history.add_message(
+                                    "",
+                                    timestamp,
+                                    sender == self.username,
+                                    profile_image,
+                                    image_label
+                                )
+                        except Exception as e:
+                            print(f"Error displaying image: {e}")
+                            
         except Exception as e:
             print(f"Error loading chat history: {e}")
         
@@ -1472,7 +2091,6 @@ class ChatClient(QMainWindow):
         event.accept()
 
     def handle_profile_update(self, username: str, profile: dict):
-        """รับการอัพเดทโปรไฟล์จาก server"""
         self.profiles[username] = profile
         
         items = self.contacts_list.findItems(username, Qt.MatchFlag.MatchExactly)

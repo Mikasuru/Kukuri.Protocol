@@ -1,0 +1,87 @@
+{
+    "name": "Default Theme",
+    "author": "System",
+    "version": "1.0",
+    "assets": {},
+    "styles": {
+        "window": {
+            "background": "#1a1a1a",
+            "font_family": "Arial",
+            "font_size": 12
+        },
+        "header": {
+            "background": "#1a1a1a",
+            "text_color": "#ffffff",
+            "font_size": 16,
+            "border_bottom": "1px solid #3d3d3d",
+            "padding": [5, 15, 5, 15]
+        },
+        "sidebar": {
+            "background": "#141414",
+            "text_color": "#ffffff",
+            "icon_color": "#999999",
+            "hover_background": "#3d3d3d",
+            "selected_background": "#2d2d2d",
+            "padding": [5, 0, 5, 0]
+        },
+        "chat_area": {
+            "background": "#2d2d2d",
+            "text_color": "#ffffff",
+            "message_spacing": 5,
+            "sent_message_bg": "#0084FF",
+            "received_message_bg": "#3a3b3c",
+            "timestamp_color": "#808080",
+            "message_padding": [8, 12, 8, 12],
+            "border_radius": 15
+        },
+        "sent_message": {
+            "background": "#0084FF",
+            "text_color": "#ffffff",
+            "border_radius": 15,
+            "padding": [8, 12, 8, 12],
+            "font_size": 14
+        },
+        "received_message": {
+            "background": "#3a3b3c",
+            "text_color": "#ffffff",
+            "border_radius": 15,
+            "padding": [8, 12, 8, 12],
+            "font_size": 14
+        },
+        "buttons": {
+            "background": "#3B82F6",
+            "text_color": "#ffffff",
+            "border_radius": 20,
+            "padding": [8, 15, 8, 15],
+            "hover_background": "#2563EB",
+            "pressed_background": "#1D4ED8",
+            "disabled_background": "#4B5563",
+            "font_size": 14
+        },
+        "input_field": {
+            "background": "#1a1a1a",
+            "text_color": "#ffffff",
+            "border_color": "#3d3d3d",
+            "border_radius": 20,
+            "padding": [8, 15, 8, 15],
+            "font_size": 14
+        },
+        "contact_list": {
+            "background": "#1a1a1a",
+            "selected_background": "#2d2d2d",
+            "hover_background": "rgba(255, 255, 255, 0.1)",
+            "text_color": "#ffffff",
+            "offline_color": "#808080",
+            "online_color": "#4CAF50",
+            "unread_color": "#E91E63",
+            "padding": [5, 10, 5, 10],
+            "border_radius": 8
+        },
+        "scrollbar": {
+            "background": "#1a1a1a",
+            "handle_color": "#3d3d3d",
+            "handle_hover_color": "#4d4d4d",
+            "width": 8
+        }
+    }
+}

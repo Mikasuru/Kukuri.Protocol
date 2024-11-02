@@ -120,7 +120,6 @@ class ChatServer:
                     pass
     
     def resize_image_base64(self, base64_str, max_size=(100, 100)):
-        """ลดขนาดรูปภาพ base64"""
         try:
             image_data = base64.b64decode(base64_str)
             image = Image.open(io.BytesIO(image_data))
@@ -209,7 +208,6 @@ class ChatServer:
         return dict(cursor.fetchall())
 
     async def handle_profile_update(self, websocket, data):
-        """จัดการคำขอแก้ไขโปรไฟล์"""
         username = data.get('username')
         if not username or username not in self.active_connections:
             return
@@ -242,7 +240,6 @@ class ChatServer:
         }))
     
     async def handle_profile_request(self, websocket, data):
-        """จัดการคำขอดูโปรไฟล์"""
         requested_username = data.get('requested_username')
         if not requested_username:
             return

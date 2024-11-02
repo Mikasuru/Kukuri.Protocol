@@ -65,7 +65,6 @@ class ChatDatabase:
         self.conn.commit()
     
     def register_user(self, username, password, display_name=None, profile_image=None, additional_image=None):
-        """ลงทะเบียนผู้ใช้ใหม่พร้อมข้อมูลโปรไฟล์"""
         try:
             cursor = self.conn.cursor()
             cursor.execute(
@@ -80,7 +79,6 @@ class ChatDatabase:
             return False
     
     def verify_user(self, username, password):
-        """ตรวจสอบการเข้าสู่ระบบ"""
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT password FROM users WHERE username = ?",
@@ -90,7 +88,6 @@ class ChatDatabase:
         return result is not None and result[0] == password
     
     def update_user_status(self, username, is_online):
-        """อัพเดทสถานะออนไลน์"""
         cursor = self.conn.cursor()
         last_seen = datetime.now() if is_online else None
         cursor.execute(
@@ -100,7 +97,6 @@ class ChatDatabase:
         self.conn.commit()
     
     def save_message(self, sender, receiver, message_type, content):
-        """บันทึกข้อความ"""
         cursor = self.conn.cursor()
         cursor.execute(
             """INSERT INTO chat_history 
@@ -111,7 +107,6 @@ class ChatDatabase:
         self.conn.commit()
     
     def get_chat_history(self, user1, user2):
-        """ดึงประวัติการแชท"""
         cursor = self.conn.cursor()
         cursor.execute(
             """SELECT sender, receiver, message_type, content, timestamp
@@ -124,7 +119,6 @@ class ChatDatabase:
         return cursor.fetchall()
     
     def get_user_chat_history(self, username):
-        """ดึงประวัติการแชททั้งหมดของผู้ใช้"""
         cursor = self.conn.cursor()
         cursor.execute(
             """SELECT sender, receiver, message_type, content, timestamp
@@ -145,7 +139,6 @@ class ChatDatabase:
         return history
 
     def get_all_users(self):
-        """ดึงรายชื่อผู้ใช้ทั้งหมด"""
         cursor = self.conn.cursor()
         cursor.execute("SELECT username FROM users")
         return [row[0] for row in cursor.fetchall()]  # username
@@ -153,7 +146,6 @@ class ChatDatabase:
     def update_profile(self, username: str, display_name: str = None, 
                       status_message: str = None, profile_picture: str = None,
                       current_theme: str = None) -> bool:
-        """อัพเดทข้อมูลโปรไฟล์"""
         try:
             cursor = self.conn.cursor()
             updates = []
@@ -190,7 +182,6 @@ class ChatDatabase:
             return False
     
     def get_profile(self, username: str) -> dict:
-        """ดึงข้อมูลโปรไฟล์"""
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
@@ -216,7 +207,6 @@ class ChatDatabase:
             return None
         
     def get_user_profile(self, username):
-        """ดึงข้อมูลโปรไฟล์ของผู้ใช้"""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT username, display_name, status_message, 
@@ -236,7 +226,6 @@ class ChatDatabase:
         return None
 
     def get_all_users_with_profiles(self):
-        """ดึงข้อมูลผู้ใช้ทั้งหมดพร้อมโปรไฟล์"""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT username, display_name, status_message, 
